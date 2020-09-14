@@ -1,8 +1,8 @@
 SQL project queries: 
 
-1. What were the sales for each Genre in France? What was the percentage contribution for each Genre?
+SQL 1:
 
-WITH T1 AS (SELECT c.country Country, g.name Genre_Name, SUM(l.quantity*l.unitprice) Genre_Total 
+WITH T1 AS (SELECT g.name Genre_Name, ROUND(SUM(l.quantity*l.unitprice),0) Genre_Total 
             FROM Genre g						 
             JOIN Track t 
             ON g.GenreId = t.GenreId 			 
@@ -12,109 +12,95 @@ WITH T1 AS (SELECT c.country Country, g.name Genre_Name, SUM(l.quantity*l.unitpr
             ON l.InvoiceId = i.InvoiceId 	 
             JOIN Customer c 
             ON c.CustomerId = I.CustomerId  
-            WHERE Country = "France" GROUP BY Genre_Name, Country 
-            ORDER BY 3 desc),  
-
-T2 as (SELECT Country, Genre_Name, SUM(Genre_Total) Genre_All  
+            WHERE Country = "USA"
+			GROUP BY Genre_Name 
+            ORDER BY 2 desc),
+			
+T2 as (SELECT Genre_Name, SUM(Genre_Total) Genre_All  
        FROM T1)  
 
-SELECT T1.country, T1.Genre_Name, T1.Genre_Total, (Genre_Total*100.0/Genre_All) Contribution_Percentage 
+SELECT T1.Genre_Name, T1.Genre_Total, ROUND((Genre_Total*100.0/Genre_All),2) Contribution_Percentage 
 FROM T1 
 JOIN T2
 
 
 
-2. Based on Question 1, how do the genre sales compare with each other? 
+SQL 2:
 
-WITH T1 AS (SELECT c.country Country, g.name Genre_Name, SUM(l.quantity*l.unitprice) Genre_Total FROM Genre g						 
-            JOIN Track t 
-            ON g.GenreId = t.GenreId 			 
-            JOIN InvoiceLine l 
-            ON t.TrackId = l.TrackId 	 
-            JOIN Invoice i 
-            ON l.InvoiceId = i.InvoiceId 	 
-            JOIN Customer c 
-            ON c.CustomerId = I.CustomerId  
-            WHERE Country = "France" GROUP BY Genre_Name, Country 
-            ORDER BY 3 desc)  
-
-SELECT avg(Genre_Total) Average_Genre 
-FROM T1
-
-
-
-3. What were Canada’s yearly sales? 
-
-WITH T1 as (SELECT i.invoicedate Dates, SUM(l.quantity*l.unitprice) Month_Total, c.country Country 
+WITH T1 AS (SELECT g.name Genre_Name, SUM(l.quantity*l.unitprice) Genre_Total
             FROM Genre g						 
             JOIN Track t 
             ON g.GenreId = t.GenreId 			 
             JOIN InvoiceLine l 
             ON t.TrackId = l.TrackId 	 
             JOIN Invoice i 
-            ON l.InvoiceId = i.InvoiceId 	 
-            JOIN Customer c 
-            ON c.CustomerId = I.CustomerId 
-            GROUP BY Dates HAVING Country = "Canada" 
-            ORDER BY Dates)  
+            ON l.InvoiceId = i.InvoiceId
+            WHERE NOT Genre_Name = 'Rock' AND NOT Genre_Name = 'Latin' AND NOT Genre_Name = 'Metal' AND
+			NOT Genre_Name = 'Alternative & Punk' AND NOT Genre_Name = 'TV Shows' AND NOT Genre_Name = 'Jazz' AND
+			NOT Genre_Name = 'Comedy' AND NOT Genre_Name = 'Blues' AND NOT Genre_Name = 'R&B/Soul' AND
+			NOT Genre_Name = 'Drama'
+            GROUP BY Genre_Name 
+            ORDER BY round(SUM(l.quantity*l.unitprice),0) desc
+            Limit 5),
 
-SELECT Country, STRFTIME('%Y', Dates) Years, SUM(month_Total) Year_Total 
+T2 AS (SELECT SUM(l.Quantity*l.UnitPrice) Total_Sales
+       FROM  InvoiceLine l)
+		   
+SELECT T1.Genre_Name, T1.Genre_Total, ROUND((Genre_Total*100.0/Total_Sales),2) Contribution_Percentage 
 FROM T1 
-GROUP BY Years 
-ORDER BY Years
+JOIN T2
+
+
+SQL 3:
+
+WITH T1 AS (SELECT r.name Artist_Name, g.Name Genre_Name, ROUND((SUM(l.Quantity)*l.UnitPrice),0) Total_Amt
+            FROM Artist r
+            JOIN Album a
+            ON r.Artistid=a.Artistid
+            JOIN Track t
+            ON a.Albumid=t.Albumid
+            JOIN Genre g
+            ON t.Genreid=g.Genreid
+            JOIN InvoiceLine l
+            ON t.TrackId = l.TrackId
+            GROUP BY 1, 2
+            ORDER BY 3 DESC),
+
+T2 AS (SELECT g.name Genre_Name, ROUND(SUM(l.quantity*l.unitprice),0) Genre_Total 
+       FROM Genre g						 
+       JOIN Track t 
+       ON g.GenreId = t.GenreId 			 
+       JOIN InvoiceLine l 
+       ON t.TrackId = l.TrackId 	 
+       JOIN Invoice i 
+       ON l.InvoiceId = i.InvoiceId 	 
+       JOIN Customer c 
+       ON c.CustomerId = I.CustomerId  
+       WHERE Country = "USA"
+       GROUP BY Genre_Name 
+       ORDER BY 2 desc
+       LIMIT 10)
+
+SELECT Artist_Name, T1.Genre_Name
+FROM T1
+JOIN T2
+ON T1.Genre_Name = T2.Genre_Name
+GROUP BY 2
+ORDER BY MAX(Total_Amt) DESC
+
+
+SQL 4:
+
+SELECT STRFTIME('%Y', i.InvoiceDate) Years, g.Name Genre_Name, ROUND((SUM(l.Quantity)*l.UnitPrice),0) Total_Sale
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId
+JOIN InvoiceLine l
+ON l.TrackId = t.TrackId
+JOIN Invoice i
+ON i.InvoiceId = l.InvoiceId
+WHERE BillingCountry = 'USA'
+GROUP BY 1, 2
 
 
 
-4.What are the overall monthly sales of Rock music in 2013 throughout the world? 
-
-WITH T1 as (SELECT i.invoicedate Dates, SUM(l.quantity*l.unitprice) Month_Total, g.name Genre_Name 
-            FROM Genre g						 
-            JOIN Track t 
-            ON g.GenreId = t.GenreId 			 
-            JOIN InvoiceLine l 
-            ON t.TrackId = l.TrackId 	 
-            JOIN Invoice i 
-            ON l.InvoiceId = i.InvoiceId 	 
-            JOIN Customer c 
-            ON c.CustomerId = I.CustomerId 
-            WHERE Dates BETWEEN "2013-01-01" AND "2014-01-01" 
-            GROUP BY Dates HAVING Genre_Name = "Rock" 
-            ORDER BY Dates)  
-
-SELECT STRFTIME('%m', Dates) Months,SUM(month_Total) Monthly_Sales 
-FROM T1 GROUP BY Months 
-ORDER BY Months
-
-
-
-5.What is the average length of Led Zeppelin’s music?  
-
-WITH T1 as (SELECT t.name Track_Name, r.name Artist_Name, t.milliseconds Lengths 
-            FROM Artist r 
-            JOIN Album a 
-            ON r.artistid = a.artistid 
-            JOIN Track t 
-            ON a.albumid= t.albumid),
-
-T2 as (SELECT track_name, Artist_name, lengths 
-       FROM t1 WHERE artist_name = "Led Zeppelin" 
-       ORDER BY lengths desc)  
-
-SELECT avg(lengths) AVG_Length 
-FROM T2 
-
-
-
-6. Based on the results from Query 5, how do they compare with the rest of his music?
-
-WITH T1 as (SELECT t.name Track_Name, r.name Artist_Name, t.milliseconds Lengths 
-            FROM Artist r 
-            JOIN Album a 
-            ON r.artistid = a.artistid 
-            JOIN Track t 
-            ON a.albumid= t.albumid)  
-            
-SELECT track_name, Artist_name, lengths 
-FROM t1 
-WHERE artist_name = "Led Zeppelin" 
-ORDER BY lengths desc
